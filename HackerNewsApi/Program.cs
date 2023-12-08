@@ -38,7 +38,7 @@ app.MapGet("/{number}", async (int number, IMemoryCache memoryCache, ITopStories
 
         if (number <= 0)
         {
-            return Results.Ok(topStories.ToList());
+            return Results.BadRequest("Number should be greater than zero");
         }
 
         // Get the top stories from the cache first
