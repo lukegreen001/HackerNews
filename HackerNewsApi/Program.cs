@@ -1,14 +1,10 @@
+using HackerNewsApi.Models;
 using HackerNewsApi.Services.TopStoriesService;
 using HackerNewsApi.Static;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
-using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -29,16 +25,19 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-const string TOP_STORIES_CACHE_KEY = "TOP_STORIES_CACHE_KEY";
-
-app.MapGet("/{number}", async (int number, IMemoryCache memoryCache, ITopStoriesService topStoriesService) =>
+app.MapGet("/{number}", async (int number, IConfiguration config, IMemoryCache memoryCache, ITopStoriesService topStoriesService, CancellationToken cancellationToken) =>
 {
     try
     {
-        ConcurrentBag<string> topStories = null;
+        var topStories = new List<Story>();
+
+        if (number <= 0)
+        {
+            return topStories;
+        }
 
         // Get the top stories from the cache first
-        memoryCache.TryGetValue(TOP_STORIES_CACHE_KEY, out topStories);
+        memoryCache.TryGetValue(MemoryCacheNames.TOP_STORIES_CACHE_KEY, out topStories);
 
         // First use the memory cache. If there is nothing in there or the number of stories being requested
         // is greater than what is cached then make the call to the service 
@@ -49,7 +48,7 @@ app.MapGet("/{number}", async (int number, IMemoryCache memoryCache, ITopStories
         }
         else
         {
-            var result = await topStoriesService.GetTopStoriesAsync(number);
+            var result = await topStoriesService.GetTopStoriesAsync(number, cancellationToken);
 
             return Results.Ok(result.ToList());
         }                
