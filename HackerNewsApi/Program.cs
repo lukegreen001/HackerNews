@@ -2,9 +2,14 @@ using HackerNewsApi.Models;
 using HackerNewsApi.Services.TopStoriesService;
 using HackerNewsApi.Static;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Configuration;
+using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container.
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -25,7 +30,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/{number}", async (int number, IConfiguration config, IMemoryCache memoryCache, ITopStoriesService topStoriesService, CancellationToken cancellationToken) =>
+app.MapGet("/{number}", async (int number, IMemoryCache memoryCache, ITopStoriesService topStoriesService, CancellationToken cancellationToken) =>
 {
     try
     {
@@ -33,7 +38,7 @@ app.MapGet("/{number}", async (int number, IConfiguration config, IMemoryCache m
 
         if (number <= 0)
         {
-            return topStories;
+            return Results.Ok(topStories.ToList());
         }
 
         // Get the top stories from the cache first
