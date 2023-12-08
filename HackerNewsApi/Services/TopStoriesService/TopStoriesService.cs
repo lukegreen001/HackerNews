@@ -2,10 +2,6 @@
 using HackerNewsApi.Static;
 using Microsoft.Extensions.Caching.Memory;
 using Newtonsoft.Json;
-using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Reflection;
-using System.Threading.Tasks;
 
 namespace HackerNewsApi.Services.TopStoriesService
 {
@@ -13,22 +9,26 @@ namespace HackerNewsApi.Services.TopStoriesService
     {
         public readonly IHttpClientFactory _httpClientFactory;
         public readonly IMemoryCache _memoryCache;
+        public readonly IConfiguration _configuration;
 
-        public TopStoriesService(IMemoryCache memoryCache, IHttpClientFactory httpClientFactory) { 
+        public TopStoriesService(
+            IMemoryCache memoryCache, 
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration) { 
             _httpClientFactory = httpClientFactory;
             _memoryCache = memoryCache;
+            _configuration = configuration;
         }
 
-        public async Task<List<Story>> GetTopStoriesAsync(int number = 0)
-        {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-
+        public async Task<List<Story>> GetTopStoriesAsync(int number, CancellationToken cancellationToken)
+        {            
             // TODO LG:  add cancellation token
 
             var httpClientTopStories = _httpClientFactory.CreateClient(HackerNewsHttpFactoryNames.TopStories);
 
             var topStoryIds = new List<int>();
 
+            // Get the list of best story Ids from the hacker news API
             try {
                 var task = await httpClientTopStories.GetAsync("");
 
@@ -45,12 +45,15 @@ namespace HackerNewsApi.Services.TopStoriesService
 
             var getStoryTaskList = new List<Task>();
 
-            // TODO LG: Check number here if greater than existing
-            // Need logic if exising memcache number is greater and asking number is less - what to do
+            if (!topStoryIds.Any())
+            {
+                return storyList;
+            }
 
+            // Loop through all the IDs and retrieve the story data and store in a list
             foreach (var topStoryId in topStoryIds.Take(number))
             {
-                var createGetStoryTask = Task.Run(() => CreateGetStoryTask(storyList, topStoryId));
+                var createGetStoryTask = Task.Run(() => CreateGetStoryTask(storyList, topStoryId, cancellationToken));
 
                 getStoryTaskList.Add(createGetStoryTask);
             }
@@ -62,17 +65,29 @@ namespace HackerNewsApi.Services.TopStoriesService
                 throw new Exception("Error getting individual stories", ex);
             }
 
-            stopwatch.Stop();
+            var sortedStoryList = storyList.OrderByDescending(story => story.score).ThenBy(story =>story.title).ToList();
 
-            Console.WriteLine(stopwatch.ElapsedMilliseconds);
+            // Save the list in the memory cache
+            var hackerStoriesCacheExpirySeconds = Convert.ToInt32(_configuration["HackerStoriesCacheExpirySeconds"]);
 
-            return storyList.OrderByDescending(story => story.score).ThenBy(story =>story.title).ToList();
+            _memoryCache.Set(MemoryCacheNames.TOP_STORIES_CACHE_KEY, sortedStoryList, DateTime.Now.AddSeconds(hackerStoriesCacheExpirySeconds));
+
+            return sortedStoryList;
         }
 
-        private async Task CreateGetStoryTask(List<Story> storyList, int storyId)
+        /// <summary>
+        /// Create task to fetch the story data for the given API and add the story to the list 
+        /// </summary>
+        /// <param name="storyList"></param>
+        /// <param name="storyId"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        private async Task CreateGetStoryTask(List<Story> storyList, int storyId, CancellationToken cancellationToken)
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var httpClientIndividualStory = _httpClientFactory.CreateClient(HackerNewsHttpFactoryNames.IndividualStories);
 
                 var task = await httpClientIndividualStory.GetAsync($"{storyId}.json");

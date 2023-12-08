@@ -5,6 +5,6 @@ namespace HackerNewsApi.Services.TopStoriesService
 {
     public interface ITopStoriesService
     {
-        Task<List<Story>> GetTopStoriesAsync(int number = 0);
+        Task<List<Story>> GetTopStoriesAsync(int number, CancellationToken cancellationToken);
     }
 }
