@@ -11,6 +11,8 @@ The other solution I was thinking of was to have a background service that fetch
 Stories would be available to users and they would have the performance. This would always fetch stories though regardless of whether anyone was the API Solution
 it was deemed inefficient.
 
+Also if we were using azure cloud we could use horizontal scaling with microservices and message bus.
+
 If I had more time I would implement some logging around the exceptions and calls.
 
 To Run:
